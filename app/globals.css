@@ -1,26 +1,77 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-brand-primary: #9852ff;
+  --color-brand-secondary: #3070f0;
+  --color-brand-accent: #7c3aed;
+  
+  --color-slate-bg: #ffffff;
+  --color-slate-surface: #f8fafc;
+  --color-slate-border: #e2e8f0;
+  --color-slate-border-hover: #cbd5e1;
+  
+  --animate-glow: glow 8s ease-in-out infinite;
+  --animate-float: float 5s ease-in-out infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes glow {
+  0%, 100% {
+    opacity: 0.25;
+    filter: blur(80px) saturate(1);
+  }
+  50% {
+    opacity: 0.4;
+    filter: blur(120px) saturate(1.2);
   }
 }
 
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Custom light scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #ffffff;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Glassmorphism utility for light mode */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(152, 82, 255, 0.2);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 30px -10px rgba(152, 82, 255, 0.08), 0 1px 3px rgba(0, 0, 0, 0.02);
 }
