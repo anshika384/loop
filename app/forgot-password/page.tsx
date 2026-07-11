@@ -3,35 +3,45 @@
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { forgotPasswordSchema } from "../../lib/validation";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isValid },
+  } = useForm({
+    resolver: zodResolver(forgotPasswordSchema),
+    mode: "onChange",
+    defaultValues: {
+      email: "",
+    },
+  });
 
-    if (!email) {
-      alert("Please enter your email.");
-      return;
-    }
-
+  const onSubmit = async (data: any) => {
     setLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
 
     try {
-      // Backend will be integrated later
-      console.log(email);
+      // Mock API call
+      console.log("Forgot password requested for:", data.email);
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      alert(
+      setSuccessMessage(
         "If an account exists, a password reset link will be sent."
       );
     } catch (error) {
       console.error(error);
-      alert("Something went wrong.");
+      setErrorMessage("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -39,9 +49,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-6 py-10">
-
       {/* Back Button */}
-
       <div className="absolute top-8 left-8">
         <Link
           href="/login"
@@ -53,9 +61,7 @@ export default function ForgotPasswordPage() {
       </div>
 
       <div className="w-full max-w-md">
-
         {/* Logo */}
-
         <div className="flex justify-center mb-6">
           <img
             src="/logo.png"
@@ -65,11 +71,8 @@ export default function ForgotPasswordPage() {
         </div>
 
         {/* Card */}
-
         <div className="rounded-3xl bg-white shadow-2xl border border-blue-100 p-8">
-
           <div className="text-center mb-8">
-
             <h1 className="text-4xl font-bold text-slate-900">
               Forgot Password
             </h1>
@@ -77,69 +80,95 @@ export default function ForgotPasswordPage() {
             <p className="text-slate-500 mt-3">
               Enter your email and we'll send you a password reset link.
             </p>
-
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
+          {/* Premium Validation Banners */}
+          <AnimatePresence mode="wait">
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium overflow-hidden"
+              >
+                {errorMessage}
+              </motion.div>
+            )}
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="mb-4 p-3.5 rounded-xl bg-green-50 border border-green-200 text-green-600 text-sm font-medium overflow-hidden"
+              >
+                {successMessage}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
-
-              <label className="block mb-2 font-medium text-slate-700">
+              <label htmlFor="email" className="block mb-2 font-medium text-slate-700">
                 Email
               </label>
 
               <div className="relative">
-
                 <Mail
                   size={18}
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
                 />
 
                 <input
+                  id="email"
                   type="email"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
                   placeholder="Enter your email"
-                  required
-                  className="w-full rounded-xl border border-slate-300 pl-12 pr-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                  autoComplete="email"
+                  aria-invalid={errors.email ? "true" : "false"}
+                  aria-describedby={errors.email ? "email-error" : undefined}
+                  {...register("email")}
+                  className={`w-full rounded-xl border pl-12 pr-4 py-3 outline-none transition ${
+                    errors.email
+                      ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                      : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  }`}
                 />
-
               </div>
 
+              <AnimatePresence>
+                {errors.email && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="email-error"
+                  >
+                    {errors.email.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-white font-semibold shadow-lg hover:scale-[1.02] transition disabled:opacity-70 disabled:cursor-not-allowed"
+              disabled={!isValid || loading}
+              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-white font-semibold shadow-lg hover:scale-[1.02] active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
             >
-              {loading
-                ? "Sending..."
-                : "Send Reset Link"}
+              {loading ? "Sending..." : "Send Reset Link"}
             </button>
-
           </form>
 
           <div className="mt-8 text-center text-slate-600">
-
             Remember your password?{" "}
-
             <Link
               href="/login"
               className="font-semibold text-blue-600 hover:underline"
             >
               Login
             </Link>
-
           </div>
-
         </div>
-
       </div>
     </main>
   );

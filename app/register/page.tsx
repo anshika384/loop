@@ -4,6 +4,10 @@ import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { registerSchema } from "../../lib/validation";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -11,159 +15,212 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    workspace: "",
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isValid },
+  } = useForm({
+    resolver: zodResolver(registerSchema),
+    mode: "onChange",
+    defaultValues: {
+      fullName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      workspace: "",
+    },
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+  const onSubmit = async (data: any) => {
+    setLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(resData.message || "Registration failed.");
+        return;
+      }
+
+      setSuccessMessage("Registration successful! Redirecting to login...");
+
+      // Wait 2 seconds for visual feedback, then redirect to login page
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("Something went wrong. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-const handleRegister = async (
-  e: React.FormEvent<HTMLFormElement>
-) => {
-  e.preventDefault();
-
-  if (
-    !formData.fullName ||
-    !formData.email ||
-    !formData.password ||
-    !formData.confirmPassword ||
-    !formData.workspace
-  ) {
-    alert("Please fill all fields.");
-    return;
-  }
-
-  if (formData.password !== formData.confirmPassword) {
-    alert("Passwords do not match.");
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const response = await fetch("/api/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(formData),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      alert(data.message);
-      return;
-    }
-
-    alert(data.message);
-
-    // Redirect after successful registration
-    router.push("/dashboard");
-
-  } catch (error) {
-    console.error(error);
-    alert("Something went wrong.");
-  } finally {
-    setLoading(false);
-  }
-};
-
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-6 py-10">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4 py-6">
       {/* Back Button */}
-      <div className="absolute top-8 left-8">
+      <div className="absolute top-6 left-6">
         <Link
           href="/"
-          className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition"
+          className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition text-sm"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={16} />
           Back to Home
         </Link>
       </div>
 
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-xl">
         {/* Logo */}
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-4">
           <img
             src="/logo.png"
             alt="LOOP Logo"
-            className="w-40 h-auto object-contain"
+            className="w-32 h-auto object-contain"
           />
         </div>
 
         {/* Register Card */}
-        <div className="rounded-3xl bg-white shadow-2xl border border-blue-100 p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-slate-900">
+        <div className="rounded-3xl bg-white shadow-2xl border border-blue-100 p-6 md:p-8">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-900">
               Create Account
             </h1>
 
-            <p className="text-slate-500 mt-3">
+            <p className="text-slate-500 mt-2 text-sm">
               Join LOOP and start managing feedback smarter.
             </p>
           </div>
 
-          <form onSubmit={handleRegister} className="space-y-5">
+          {/* Premium Validation Banners */}
+          <AnimatePresence mode="wait">
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium overflow-hidden"
+              >
+                {errorMessage}
+              </motion.div>
+            )}
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="mb-4 p-3.5 rounded-xl bg-green-50 border border-green-200 text-green-600 text-sm font-medium overflow-hidden"
+              >
+                {successMessage}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Full Name */}
-            <div>
-              <label className="block mb-2 font-medium text-slate-700">
+            <div className="sm:col-span-1">
+              <label htmlFor="fullName" className="block mb-1.5 text-sm font-medium text-slate-700">
                 Full Name
               </label>
 
               <input
+                id="fullName"
                 type="text"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleChange}
                 placeholder="Enter your full name"
-                required
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                aria-invalid={errors.fullName ? "true" : "false"}
+                aria-describedby={errors.fullName ? "fullName-error" : undefined}
+                {...register("fullName")}
+                className={`w-full rounded-xl border px-4 py-2.5 outline-none transition text-sm ${
+                  errors.fullName
+                    ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                }`}
               />
+
+              <AnimatePresence>
+                {errors.fullName && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="fullName-error"
+                  >
+                    {errors.fullName.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Email */}
-            <div>
-              <label className="block mb-2 font-medium text-slate-700">
+            <div className="sm:col-span-1">
+              <label htmlFor="email" className="block mb-1.5 text-sm font-medium text-slate-700">
                 Email
               </label>
 
               <input
+                id="email"
                 type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
                 placeholder="Enter your email"
-                required
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                aria-invalid={errors.email ? "true" : "false"}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                {...register("email")}
+                className={`w-full rounded-xl border px-4 py-2.5 outline-none transition text-sm ${
+                  errors.email
+                    ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                }`}
               />
+
+              <AnimatePresence>
+                {errors.email && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="email-error"
+                  >
+                    {errors.email.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Password */}
-            <div>
-              <label className="block mb-2 font-medium text-slate-700">
+            <div className="sm:col-span-1">
+              <label htmlFor="password" className="block mb-1.5 text-sm font-medium text-slate-700">
                 Password
               </label>
 
               <div className="relative">
                 <input
+                  id="password"
                   type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
                   placeholder="Create password"
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                  aria-invalid={errors.password ? "true" : "false"}
+                  aria-describedby={errors.password ? "password-error" : undefined}
+                  {...register("password")}
+                  className={`w-full rounded-xl border px-4 py-2.5 pr-12 outline-none transition text-sm ${
+                    errors.password
+                      ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                      : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  }`}
                 />
 
                 <button
@@ -172,29 +229,48 @@ const handleRegister = async (
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-600"
                 >
                   {showPassword ? (
-                    <EyeOff size={20} />
+                    <EyeOff size={18} />
                   ) : (
-                    <Eye size={20} />
+                    <Eye size={18} />
                   )}
                 </button>
               </div>
+
+              <AnimatePresence>
+                {errors.password && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="password-error"
+                  >
+                    {errors.password.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Confirm Password */}
-            <div>
-              <label className="block mb-2 font-medium text-slate-700">
+            <div className="sm:col-span-1">
+              <label htmlFor="confirmPassword" className="block mb-1.5 text-sm font-medium text-slate-700">
                 Confirm Password
               </label>
 
               <div className="relative">
                 <input
+                  id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
                   placeholder="Confirm password"
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                  aria-invalid={errors.confirmPassword ? "true" : "false"}
+                  aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}
+                  {...register("confirmPassword")}
+                  className={`w-full rounded-xl border px-4 py-2.5 pr-12 outline-none transition text-sm ${
+                    errors.confirmPassword
+                      ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                      : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  }`}
                 />
 
                 <button
@@ -205,42 +281,78 @@ const handleRegister = async (
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-blue-600"
                 >
                   {showConfirmPassword ? (
-                    <EyeOff size={20} />
+                    <EyeOff size={18} />
                   ) : (
-                    <Eye size={20} />
+                    <Eye size={18} />
                   )}
                 </button>
               </div>
+
+              <AnimatePresence>
+                {errors.confirmPassword && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="confirmPassword-error"
+                  >
+                    {errors.confirmPassword.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Workspace */}
-            <div>
-              <label className="block mb-2 font-medium text-slate-700">
+            <div className="sm:col-span-2">
+              <label htmlFor="workspace" className="block mb-1.5 text-sm font-medium text-slate-700">
                 Workspace / Company Name
               </label>
 
               <input
+                id="workspace"
                 type="text"
-                name="workspace"
-                value={formData.workspace}
-                onChange={handleChange}
                 placeholder="Enter workspace or company name"
-                required
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                aria-invalid={errors.workspace ? "true" : "false"}
+                aria-describedby={errors.workspace ? "workspace-error" : undefined}
+                {...register("workspace")}
+                className={`w-full rounded-xl border px-4 py-2.5 outline-none transition text-sm ${
+                  errors.workspace
+                    ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                }`}
               />
+
+              <AnimatePresence>
+                {errors.workspace && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="workspace-error"
+                  >
+                    {errors.workspace.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Register Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-white font-semibold shadow-lg hover:scale-[1.02] transition disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {loading ? "Creating Account..." : "Create Account"}
-            </button>
+            <div className="sm:col-span-2 mt-2">
+              <button
+                type="submit"
+                disabled={!isValid || loading}
+                className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-white font-semibold shadow-lg hover:scale-[1.01] active:scale-[0.99] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed text-sm"
+              >
+                {loading ? "Creating Account..." : "Create Account"}
+              </button>
+            </div>
           </form>
 
-          <div className="mt-8 text-center text-slate-600">
+          <div className="mt-6 text-center text-sm text-slate-600">
             Already have an account?{" "}
             <Link
               href="/login"

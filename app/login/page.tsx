@@ -2,11 +2,70 @@
 
 import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema } from "../../lib/validation";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isValid },
+  } = useForm({
+    resolver: zodResolver(loginSchema),
+    mode: "onChange",
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (data: any) => {
+    setLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(resData.message || "Invalid credentials.");
+        return;
+      }
+
+      setSuccessMessage("Login successful! Redirecting to dashboard...");
+
+      // Wait 1.5 seconds for visual feedback, then redirect to dashboard page
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("Something went wrong. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-6 py-10">
@@ -43,33 +102,88 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form className="space-y-5">
+          {/* Premium Validation Banners */}
+          <AnimatePresence mode="wait">
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-medium overflow-hidden"
+              >
+                {errorMessage}
+              </motion.div>
+            )}
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -10, height: 0 }}
+                className="mb-4 p-3.5 rounded-xl bg-green-50 border border-green-200 text-green-600 text-sm font-medium overflow-hidden"
+              >
+                {successMessage}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Email */}
             <div>
-              <label className="block mb-2 font-medium text-slate-700">
+              <label htmlFor="email" className="block mb-2 font-medium text-slate-700">
                 Email
               </label>
 
               <input
+                id="email"
                 type="email"
                 placeholder="Enter your email"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
-                required
+                autoComplete="username"
+                aria-invalid={errors.email ? "true" : "false"}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                {...register("email")}
+                className={`w-full rounded-xl border px-4 py-3 outline-none transition ${
+                  errors.email
+                    ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                }`}
               />
+
+              <AnimatePresence>
+                {errors.email && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="email-error"
+                  >
+                    {errors.email.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Password */}
             <div>
-              <label className="block mb-2 font-medium text-slate-700">
+              <label htmlFor="password" className="block mb-2 font-medium text-slate-700">
                 Password
               </label>
 
               <div className="relative">
                 <input
+                  id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
-                  required
+                  autoComplete="current-password"
+                  aria-invalid={errors.password ? "true" : "false"}
+                  aria-describedby={errors.password ? "password-error" : undefined}
+                  {...register("password")}
+                  className={`w-full rounded-xl border px-4 py-3 pr-12 outline-none transition ${
+                    errors.password
+                      ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                      : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  }`}
                 />
 
                 <button
@@ -84,6 +198,21 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+
+              <AnimatePresence>
+                {errors.password && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-red-500 text-xs mt-1 font-medium overflow-hidden"
+                    id="password-error"
+                  >
+                    {errors.password.message}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Remember Me + Forgot Password */}
@@ -109,9 +238,10 @@ export default function LoginPage() {
             {/* Login Button */}
             <button
               type="submit"
-              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-white font-semibold shadow-lg hover:scale-[1.02] transition"
+              disabled={!isValid || loading}
+              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-white font-semibold shadow-lg hover:scale-[1.02] active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
             >
-              Login
+              {loading ? "Logging in..." : "Login"}
             </button>
           </form>
 

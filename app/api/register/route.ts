@@ -1,59 +1,79 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import prisma from "@/lib/prisma";
+import { registerSchema } from "@/lib/validation";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const {
-      fullName,
-      email,
-      password,
-      confirmPassword,
-      workspace,
-    } = body;
-
-    // Validation
-    if (
-      !fullName ||
-      !email ||
-      !password ||
-      !confirmPassword ||
-      !workspace
-    ) {
+    // 1. Validate input payload using schema
+    const result = registerSchema.safeParse(body);
+    if (!result.success) {
+      const errorMessage = result.error.issues.map((issue) => issue.message).join(" ");
       return NextResponse.json(
-        { message: "All fields are required." },
+        { success: false, message: errorMessage || "Validation failed." },
         { status: 400 }
       );
     }
 
-    if (password !== confirmPassword) {
+    const { fullName, email, password, workspace } = result.data;
+
+    // 2. Prevent duplicate registrations with the same email
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
       return NextResponse.json(
-        { message: "Passwords do not match." },
+        { success: false, message: "Email is already registered." },
         { status: 400 }
       );
     }
 
-    // Hash password
+    // 3. Securely hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Temporary output until database is added
-    console.log({
-      fullName,
-      email,
-      workspace,
-      hashedPassword,
+    // 4. Create workspace and admin user atomically in a database transaction
+    const transactionResult = await prisma.$transaction(async (tx) => {
+      // Create the workspace
+      const createdWorkspace = await tx.workspace.create({
+        data: {
+          name: workspace.trim(),
+        },
+      });
+
+      // Create the user referencing the workspace, assigned as ADMIN role
+      const createdUser = await tx.user.create({
+        data: {
+          name: fullName.trim(),
+          email: email,
+          passwordHash: hashedPassword,
+          role: "ADMIN",
+          workspaceId: createdWorkspace.id,
+        },
+      });
+
+      return { workspace: createdWorkspace, user: createdUser };
     });
 
-    return NextResponse.json({
-      success: true,
-      message: "Registration successful.",
+    console.log("Account successfully created:", {
+      userId: transactionResult.user.id,
+      email: transactionResult.user.email,
+      workspaceId: transactionResult.workspace.id,
     });
-  } catch (error) {
-    console.error(error);
 
     return NextResponse.json(
-      { message: "Something went wrong." },
+      {
+        success: true,
+        message: "Registration successful. You can now login.",
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Registration endpoint error:", error);
+    return NextResponse.json(
+      { success: false, message: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
