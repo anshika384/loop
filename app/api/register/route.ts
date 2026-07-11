@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { registerSchema } from "@/lib/validation";
 
@@ -63,10 +64,19 @@ export async function POST(req: Request) {
       workspaceId: transactionResult.workspace.id,
     });
 
+    const cookieStore = await cookies();
+    cookieStore.set("session_token", transactionResult.user.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      path: "/",
+    });
+
     return NextResponse.json(
       {
         success: true,
-        message: "Registration successful. You can now login.",
+        message: "Registration successful. Redirecting to dashboard...",
       },
       { status: 201 }
     );

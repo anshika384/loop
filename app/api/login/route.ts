@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation";
 
@@ -47,10 +48,19 @@ export async function POST(req: Request) {
       workspaceId: user.workspaceId,
     });
 
+    const cookieStore = await cookies();
+    cookieStore.set("session_token", user.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+      path: "/",
+    });
+
     return NextResponse.json(
       {
         success: true,
-        message: "Login successful.",
+        message: "Login successful. Redirecting...",
       },
       { status: 200 }
     );

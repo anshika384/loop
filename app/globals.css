@@ -75,3 +75,12 @@ body {
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 10px 30px -10px rgba(152, 82, 255, 0.08), 0 1px 3px rgba(0, 0, 0, 0.02);
 }
+
+/* Hide Next.js/Turbopack dev indicator overlays */
+#next-dev-indicator,
+next-route-announcer,
+[data-nextjs-dialog-overlay] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
