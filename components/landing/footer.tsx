@@ -68,16 +68,16 @@ export default function Footer() {
             {/* Newsletter form */}
             <div className="space-y-3 pt-2">
               <span className="block text-xs font-bold uppercase tracking-wider text-slate-200">Subscribe to our newsletter</span>
-              <form onSubmit={handleSubscribe} className="flex max-w-sm gap-2">
+              <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row max-w-sm gap-2">
                 <input
                   type="email"
                   placeholder="you@example.com"
                   required
-                  className="min-w-0 flex-1 rounded-full border border-slate-800 bg-slate-900 px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-primary focus:outline-none"
+                  className="w-full sm:flex-1 rounded-full border border-slate-800 bg-slate-900 px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-brand-primary focus:outline-none"
                 />
                 <button
                   type="submit"
-                  className="rounded-full bg-white px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-slate-200 transition active:scale-[0.97]"
+                  className="w-full sm:w-auto rounded-full bg-white px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-slate-200 transition active:scale-[0.97]"
                 >
                   Subscribe
                 </button>

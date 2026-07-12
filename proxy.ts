@@ -13,26 +13,12 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // Redirect authenticated users away from authentication pages
-  if (
-    pathname === "/login" ||
-    pathname === "/register" ||
-    pathname === "/forgot-password"
-  ) {
-    if (sessionToken) {
-      const dashboardUrl = new URL("/dashboard", request.url);
-      return NextResponse.redirect(dashboardUrl);
-    }
-  }
-
   return NextResponse.next();
 }
 
+// Match only dashboard routes to protect them
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/login",
-    "/register",
-    "/forgot-password",
   ],
 };

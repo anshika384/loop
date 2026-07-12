@@ -31,29 +31,39 @@ export default function ForgotPasswordPage() {
     setSuccessMessage(null);
 
     try {
-      // Mock API call
-      console.log("Forgot password requested for:", data.email);
+      const response = await fetch("/api/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const resData = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(resData.message || "Failed to submit request.");
+        return;
+      }
 
       setSuccessMessage(
-        "If an account exists, a password reset link will be sent."
+        resData.message || "If an account exists, a password reset link will be sent."
       );
     } catch (error) {
       console.error(error);
-      setErrorMessage("Something went wrong. Please try again.");
+      setErrorMessage("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-6 py-10">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col items-center justify-center px-6 py-10 relative">
       {/* Back Button */}
-      <div className="absolute top-8 left-8">
+      <div className="w-full max-w-md mx-auto mb-6 sm:mb-0 sm:absolute sm:top-8 sm:left-8 sm:w-auto">
         <Link
           href="/login"
-          className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition"
+          className="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition text-sm sm:text-base"
         >
           <ArrowLeft size={18} />
           Back to Login

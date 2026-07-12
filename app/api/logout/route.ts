@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 
 export async function POST() {
@@ -18,3 +18,15 @@ export async function POST() {
     );
   }
 }
+
+export async function GET(req: NextRequest) {
+  try {
+    const cookieStore = await cookies();
+    cookieStore.delete("session_token");
+  } catch (error) {
+    console.error("Logout GET error:", error);
+  }
+  const redirectTo = req.nextUrl.searchParams.get("redirect") || "/login";
+  return NextResponse.redirect(new URL(redirectTo, req.url));
+}
+

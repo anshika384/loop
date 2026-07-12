@@ -176,6 +176,7 @@ export default function Hero() {
               animate={{ opacity: 1, x: 0, y: 0 }}
               transition={{ duration: 0.8, delay: 0.6 }}
               style={{ originX: 0.5, originY: 0.5 }}
+              className="hidden sm:block"
             >
               <motion.div
                 animate={{ y: [0, -10, 0] }}
@@ -201,6 +202,7 @@ export default function Hero() {
               initial={{ opacity: 0, x: 30, y: 30 }}
               animate={{ opacity: 1, x: 0, y: 0 }}
               transition={{ duration: 0.8, delay: 0.7 }}
+              className="hidden sm:block"
             >
               <motion.div
                 animate={{ y: [0, 10, 0] }}
@@ -223,6 +225,7 @@ export default function Hero() {
               initial={{ opacity: 0, y: -40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
+              className="hidden sm:block"
             >
               <motion.div
                 animate={{ y: [0, -8, 0] }}

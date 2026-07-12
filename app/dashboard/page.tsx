@@ -21,9 +21,7 @@ export default async function DashboardPage() {
 
   // If user session is invalid or deleted from the database
   if (!user) {
-    // Delete the invalid session cookie
-    cookieStore.delete("session_token");
-    redirect("/login");
+    redirect("/api/logout?redirect=/login");
   }
 
   const serializedUser = {

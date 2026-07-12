@@ -1,14 +1,16 @@
 "use client";
 
-import { Sparkles, Inbox, BarChart3, Group, MessageSquare, Bell, FileText, Settings, LayoutDashboard, UploadCloud, Users } from "lucide-react";
+import { Sparkles, Inbox, BarChart3, Group, MessageSquare, Bell, FileText, Settings, LayoutDashboard, UploadCloud, Users, X } from "lucide-react";
 
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   workspaceName: string;
+  className?: string;
+  onClose?: () => void;
 }
 
-export default function Sidebar({ activeView, onViewChange, workspaceName }: SidebarProps) {
+export default function Sidebar({ activeView, onViewChange, workspaceName, className, onClose }: SidebarProps) {
   const sections = [
     {
       title: "Feedback",
@@ -42,16 +44,28 @@ export default function Sidebar({ activeView, onViewChange, workspaceName }: Sid
   ];
 
   return (
-    <aside className="w-64 border-r border-slate-800 bg-slate-900 text-slate-300 flex flex-col h-screen overflow-hidden select-none shrink-0">
+    <aside className={`w-64 border-r border-slate-800 bg-slate-900 text-slate-300 flex flex-col h-screen overflow-hidden select-none shrink-0 ${className || ""}`}>
       {/* Workspace Header */}
-      <div className="flex items-center gap-3.5 px-6 py-5 border-b border-slate-800 bg-slate-950 shrink-0">
-        <img src="/logo.png" alt="LOOP Logo" className="h-11 w-auto max-w-[125px] object-contain rounded-lg shadow-md shrink-0" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-black text-brand-primary tracking-wider uppercase">Workspace</p>
-          <h2 className="text-[13px] font-black text-white truncate" title={workspaceName}>
-            {workspaceName}
-          </h2>
+      <div className="flex items-center justify-between gap-2 px-6 py-5 border-b border-slate-800 bg-slate-950 shrink-0">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <img src="/logo.png" alt="LOOP Logo" className="h-11 w-auto max-w-[110px] object-contain rounded-lg shadow-md shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-black text-brand-primary tracking-wider uppercase">Workspace</p>
+            <h2 className="text-[13px] font-black text-white truncate" title={workspaceName}>
+              {workspaceName}
+            </h2>
+          </div>
         </div>
+
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-md transition duration-150 shrink-0 cursor-pointer"
+            aria-label="Close sidebar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* Nav List */}

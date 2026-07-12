@@ -43,6 +43,8 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role     @default(VIEWER)
+  resetToken        String?   @unique
+  resetTokenExpires DateTime?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

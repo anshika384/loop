@@ -71,12 +71,12 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4 py-6">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col items-center justify-center px-4 py-6 relative">
       {/* Back Button */}
-      <div className="absolute top-6 left-6">
+      <div className="w-full max-w-xl mx-auto mb-4 sm:mb-0 sm:absolute sm:top-6 sm:left-6 sm:w-auto">
         <Link
           href="/"
-          className="flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition text-sm"
+          className="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 font-medium transition text-sm sm:text-base"
         >
           <ArrowLeft size={16} />
           Back to Home
