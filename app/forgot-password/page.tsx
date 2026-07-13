@@ -7,11 +7,21 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { forgotPasswordSchema } from "../../lib/validation";
 import { motion, AnimatePresence } from "framer-motion";
+import SuccessDialog from "@/components/shared/success-dialog";
 
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Success Dialog & Toast States
+  const [resetDialogData, setResetDialogData] = useState<{ isOpen: boolean; title: string; description: string; url: string } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const {
     register,
@@ -46,9 +56,20 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      setSuccessMessage(
-        resData.message || "If an account exists, a password reset link will be sent."
-      );
+      if (resData.success && !resData.emailSent && resData.resetUrl) {
+        setResetDialogData({
+          isOpen: true,
+          title: "Password Reset Link Generated",
+          description: resData.emailError && resData.mode === "resend"
+            ? `Email delivery failed: ${resData.emailError}.\n\nFalling back to development mode. Use the link below for testing.`
+            : "Development Mode is enabled.\nEmail delivery is disabled.\nUse the secure password reset link below for testing.",
+          url: resData.resetUrl,
+        });
+      } else {
+        setSuccessMessage(
+          resData.message || "If an account exists, a password reset link will be sent."
+        );
+      }
     } catch (error) {
       console.error(error);
       setErrorMessage("Something went wrong. Please try again later.");
@@ -180,6 +201,31 @@ export default function ForgotPasswordPage() {
           </div>
         </div>
       </div>
+
+      <SuccessDialog
+        isOpen={!!resetDialogData?.isOpen}
+        onClose={() => setResetDialogData(null)}
+        title={resetDialogData?.title || ""}
+        description={resetDialogData?.description || ""}
+        url={resetDialogData?.url || ""}
+        copyLabel="Copy Reset Link"
+        openLabel="Open Reset Page"
+        toastTrigger={triggerToast}
+      />
+
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-6 right-6 z-50 px-4 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-2 border border-slate-800"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-ping" />
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

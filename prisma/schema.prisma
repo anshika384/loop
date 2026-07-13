@@ -31,10 +31,12 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users     User[]
-  feedbacks Feedback[]
-  themes    Theme[]
-  reports   Report[]
+  users       User[]
+  feedbacks   Feedback[]
+  themes      Theme[]
+  reports     Report[]
+  activities  Activity[]
+  invitations Invitation[]
 }
 
 model User {
@@ -136,6 +138,35 @@ model Report {
 
   generatedById String
   generatedBy   User @relation(fields: [generatedById], references: [id])
+
+  @@index([workspaceId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  action      String
+  target      String
+  createdAt   DateTime @default(now())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([createdAt])
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  email       String
+  name        String
+  role        Role     @default(VIEWER)
+  token       String   @unique
+  expiresAt   DateTime
+  accepted    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
 }

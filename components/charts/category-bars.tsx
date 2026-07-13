@@ -8,25 +8,41 @@ interface CategoryData {
   color: string;
 }
 
-export default function CategoryBars() {
-  const data: CategoryData[] = [
-    { name: "Checkout & Stripe", volume: 42, color: "url(#barBilling)" },
-    { name: "App Latency", volume: 26, color: "url(#barLatency)" },
-    { name: "UI Design", volume: 51, color: "url(#barUI)" },
-    { name: "Feature Requests", volume: 18, color: "url(#barFeatures)" },
-  ];
+interface CategoryBarsProps {
+  data?: CategoryData[];
+}
 
+export default function CategoryBars({ data = [] }: CategoryBarsProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  if (data.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+        <div>
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Categories Breakdown</h4>
+          <p className="text-sm font-bold text-slate-800">Top Problem Areas</p>
+        </div>
+        <div className="h-[220px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 gap-2">
+          <span className="text-2xl">📊</span>
+          <span className="font-extrabold text-slate-700 text-xs">No Category Analytics Available</span>
+          <span className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
+            AI problem categories will be listed once customer complaints are clustered.
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   const width = 500;
   const height = 220;
   const padding = 40;
 
-  const maxVal = Math.max(...data.map((d) => d.volume), 60);
+  const maxVal = Math.max(...data.map((d) => d.volume), 10);
 
   const getX = (index: number) => {
     const chartWidth = width - padding * 2;
-    const barSpacing = chartWidth / data.length;
+    const spacingCount = data.length || 1;
+    const barSpacing = chartWidth / spacingCount;
     return padding + index * barSpacing + barSpacing / 2;
   };
 

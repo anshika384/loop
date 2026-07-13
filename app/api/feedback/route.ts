@@ -128,6 +128,17 @@ export async function POST(req: Request) {
           });
           count++;
         }
+
+        if (count > 0) {
+          await tx.activity.create({
+            data: {
+              action: "CSV imported",
+              target: `${count} feedback items`,
+              workspaceId: user.workspaceId,
+            },
+          });
+        }
+
         return count;
       });
 
@@ -168,6 +179,15 @@ export async function POST(req: Request) {
           sentiment: detectedSentiment as any,
           sentimentScore: score,
           status: "NEW",
+          workspaceId: user.workspaceId,
+        },
+      });
+
+      // Log activity
+      await prisma.activity.create({
+        data: {
+          action: "Feedback added",
+          target: `Via ${channel}`,
           workspaceId: user.workspaceId,
         },
       });

@@ -148,6 +148,36 @@ export async function POST() {
       });
     }
 
+    // Seed activities with realistic relative timestamps
+    await prisma.activity.createMany({
+      data: [
+        {
+          action: "User joined workspace",
+          target: "Sarah Jenkins",
+          workspaceId,
+          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+        {
+          action: "User joined workspace",
+          target: "David Miller",
+          workspaceId,
+          createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        },
+        {
+          action: "CSV imported",
+          target: "15 feedback items",
+          workspaceId,
+          createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+        },
+        {
+          action: "Report generated",
+          target: "Weekly Feedback Summary & Recommendations",
+          workspaceId,
+          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+        },
+      ],
+    });
+
     return NextResponse.json({ success: true, message: "Demo data successfully seeded." });
   } catch (error) {
     console.error("Demo seeding error:", error);

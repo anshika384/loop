@@ -32,6 +32,7 @@ export default function DashboardLayout({
         activeView={activeView}
         onViewChange={onViewChange}
         workspaceName={user.workspaceName}
+        userRole={user.role}
         className="hidden lg:flex"
       />
 
@@ -58,6 +59,7 @@ export default function DashboardLayout({
               setIsMobileSidebarOpen(false);
             }}
             workspaceName={user.workspaceName}
+            userRole={user.role}
             onClose={() => setIsMobileSidebarOpen(false)}
           />
         </div>

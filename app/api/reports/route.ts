@@ -109,6 +109,15 @@ export async function POST(req: Request) {
       },
     });
 
+    // Log activity
+    await prisma.activity.create({
+      data: {
+        action: "Report generated",
+        target: title,
+        workspaceId: user.workspaceId,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       data: report,

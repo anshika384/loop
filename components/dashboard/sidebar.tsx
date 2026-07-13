@@ -8,9 +8,10 @@ interface SidebarProps {
   workspaceName: string;
   className?: string;
   onClose?: () => void;
+  userRole?: string;
 }
 
-export default function Sidebar({ activeView, onViewChange, workspaceName, className, onClose }: SidebarProps) {
+export default function Sidebar({ activeView, onViewChange, workspaceName, className, onClose, userRole }: SidebarProps) {
   const sections = [
     {
       title: "Feedback",
@@ -42,6 +43,23 @@ export default function Sidebar({ activeView, onViewChange, workspaceName, class
       ],
     },
   ];
+
+  // Filter sections and items based on the userRole
+  const filteredSections = sections.map((sec) => {
+    const items = sec.items.filter((item) => {
+      if (userRole === "VIEWER") {
+        // VIEWERS only have access to Dashboard (overview), Charts, and Reports
+        return ["overview", "analytics", "reports"].includes(item.id);
+      }
+      if (userRole === "ANALYST") {
+        // ANALYSTS have access to everything except Team and Settings
+        return !["team", "settings"].includes(item.id);
+      }
+      // ADMINs see everything
+      return true;
+    });
+    return { ...sec, items };
+  }).filter((sec) => sec.items.length > 0);
 
   return (
     <aside className={`w-64 border-r border-slate-800 bg-slate-900 text-slate-300 flex flex-col h-screen overflow-hidden select-none shrink-0 ${className || ""}`}>
@@ -86,7 +104,7 @@ export default function Sidebar({ activeView, onViewChange, workspaceName, class
         </div>
 
         {/* Section Groups */}
-        {sections.map((sec, idx) => (
+        {filteredSections.map((sec, idx) => (
           <div key={idx} className="space-y-1">
             <span className="px-3.5 text-[9.5px] font-black uppercase tracking-widest text-slate-500 block">
               {sec.title}

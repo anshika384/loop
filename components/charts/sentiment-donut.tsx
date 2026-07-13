@@ -2,16 +2,32 @@
 
 import { useState } from "react";
 
-export default function SentimentDonut() {
-  const data = [
-    { name: "Positive", value: 64, color: "#10B981" },
-    { name: "Neutral", value: 22, color: "#94A3B8" },
-    { name: "Negative", value: 14, color: "#EF4444" },
-  ];
+interface SentimentDonutProps {
+  data?: { name: string; value: number; color: string }[];
+}
 
+export default function SentimentDonut({ data = [] }: SentimentDonutProps) {
   const total = data.reduce((acc, curr) => acc + curr.value, 0);
 
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  if (total === 0) {
+    return (
+      <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4 flex flex-col justify-between">
+        <div>
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Sentiment Share</h4>
+          <p className="text-sm font-bold text-slate-800">Total Distribution Index</p>
+        </div>
+        <div className="h-[200px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 gap-2 my-2">
+          <span className="text-2xl">🍩</span>
+          <span className="font-extrabold text-slate-700 text-xs">No Sentiment Share Available</span>
+          <span className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
+            Sentiment breakdowns will appear here once customer feedbacks are processed.
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   // SVG dimensions
   const size = 200;
@@ -20,6 +36,9 @@ export default function SentimentDonut() {
   const circumference = 2 * Math.PI * radius;
 
   let currentOffset = 0;
+
+  const defaultItem = data.find((d) => d.name === "Positive") || data[0] || { name: "No Data", value: 0 };
+  const displayItem = hoveredIdx !== null ? data[hoveredIdx] : defaultItem;
 
   return (
     <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4 flex flex-col justify-between">
@@ -30,8 +49,8 @@ export default function SentimentDonut() {
 
       <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
         {/* SVG Donut */}
-        <div className="relative" style={{ width: size, height: size }}>
-          <svg width={size} height={size} className="transform -rotate-90">
+        <div className="relative w-full max-w-[160px] aspect-square shrink-0 mx-auto sm:mx-0">
+          <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full transform -rotate-90 overflow-visible">
             {/* Background Circle */}
             <circle
               cx={size / 2}
@@ -44,7 +63,6 @@ export default function SentimentDonut() {
 
             {/* Segments */}
             {data.map((item, idx) => {
-              const percentage = (item.value / total) * 100;
               const strokeLength = (item.value / total) * circumference;
               const strokeOffset = circumference - strokeLength + currentOffset;
               currentOffset -= strokeLength;
@@ -72,23 +90,12 @@ export default function SentimentDonut() {
 
           {/* Central label */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            {hoveredIdx !== null ? (
-              <>
-                <span className="text-2xl font-black text-slate-800">
-                  {data[hoveredIdx].value}%
-                </span>
-                <span className="text-[9px] font-bold text-slate-450 uppercase text-slate-400">
-                  {data[hoveredIdx].name}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="text-2xl font-black text-slate-800">64%</span>
-                <span className="text-[9px] font-bold text-slate-450 uppercase text-slate-400">
-                  Positive
-                </span>
-              </>
-            )}
+            <span className="text-xl sm:text-2xl font-black text-slate-800">
+              {displayItem.value}%
+            </span>
+            <span className="text-[8px] sm:text-[9px] font-bold text-slate-450 uppercase text-slate-400">
+              {displayItem.name}
+            </span>
           </div>
         </div>
 

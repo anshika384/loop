@@ -8,18 +8,30 @@ interface TimelineData {
   negative: number;
 }
 
-export default function SentimentTimeline() {
-  const data: TimelineData[] = [
-    { day: "Mon", positive: 5, negative: 3 },
-    { day: "Tue", positive: 8, negative: 2 },
-    { day: "Wed", positive: 12, negative: 5 },
-    { day: "Thu", positive: 9, negative: 6 },
-    { day: "Fri", positive: 15, negative: 4 },
-    { day: "Sat", positive: 18, negative: 2 },
-    { day: "Sun", positive: 14, negative: 3 },
-  ];
+interface SentimentTimelineProps {
+  data?: TimelineData[];
+}
 
+export default function SentimentTimeline({ data = [] }: SentimentTimelineProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  if (data.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+        <div>
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Sentiment Over Time</h4>
+          <p className="text-sm font-bold text-slate-800">Weekly Timeline Distribution</p>
+        </div>
+        <div className="h-[220px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 gap-2">
+          <span className="text-2xl">📈</span>
+          <span className="font-extrabold text-slate-700 text-xs">No Timeline Analytics Available</span>
+          <span className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
+            Weekly distribution trends will automatically appear once customer feedback is ingested for this period.
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   // SVG dimensions
   const width = 600;
@@ -30,6 +42,7 @@ export default function SentimentTimeline() {
   const maxVal = Math.max(...data.flatMap((d) => [d.positive, d.negative]), 20);
 
   const getX = (index: number) => {
+    if (data.length <= 1) return width / 2;
     return padding + (index * (width - padding * 2)) / (data.length - 1);
   };
 
@@ -109,17 +122,24 @@ export default function SentimentTimeline() {
           })}
 
           {/* X Axis labels */}
-          {data.map((d, i) => (
-            <text
-              key={i}
-              x={getX(i)}
-              y={height - 10}
-              textAnchor="middle"
-              className="text-[9px] font-bold fill-slate-400"
-            >
-              {d.day}
-            </text>
-          ))}
+          {(() => {
+            const labelInterval = Math.ceil(data.length / 8) || 1;
+            return data.map((d, i) => {
+              const shouldRender = i === 0 || i === data.length - 1 || i % labelInterval === 0;
+              if (!shouldRender) return null;
+              return (
+                <text
+                  key={i}
+                  x={getX(i)}
+                  y={height - 10}
+                  textAnchor="middle"
+                  className="text-[9px] font-bold fill-slate-400"
+                >
+                  {d.day}
+                </text>
+              );
+            });
+          })()}
 
           {/* Area Gradients */}
           <path d={generateAreaPath("positive")} fill="url(#posGrad)" />

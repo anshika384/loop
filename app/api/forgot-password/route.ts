@@ -73,19 +73,39 @@ export async function POST(req: Request) {
       appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     }
 
-    try {
-      await sendResetPasswordEmail(email, token, appUrl);
-      console.log(`Reset password email sent successfully to: ${email} with base URL: ${appUrl}`);
-    } catch (mailError) {
-      console.error(`Failed to send password reset email to ${email}:`, mailError);
-      // We still return a 200 response to prevent email enumeration,
-      // but developers will see the error in server logs.
+    const provider = process.env.EMAIL_PROVIDER || "development";
+    let emailSent = false;
+    let emailError: string | null = null;
+    const resetUrl = `${appUrl}/reset-password?token=${token}`;
+
+    if (provider === "resend") {
+      try {
+        await sendResetPasswordEmail(email, token, appUrl);
+        console.log(`Reset password email sent successfully to: ${email} with base URL: ${appUrl}`);
+        emailSent = true;
+      } catch (mailError: any) {
+        console.error(`Failed to send password reset email to ${email}:`, mailError);
+        emailError = mailError.message || "Resend API failure";
+      }
+    } else {
+      emailError = "Development Mode: Email delivery is disabled.";
+      console.log("\n==================================================");
+      console.log("🔑 PASSWORD RESET LINK GENERATED (DEV MODE):");
+      console.log(`Recipient: ${email}`);
+      console.log(`Reset URL: ${resetUrl}`);
+      console.log("==================================================\n");
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: "If an account exists, a password reset link will be sent.",
+        emailSent,
+        resetUrl,
+        mode: provider,
+        emailError,
+        message: emailSent
+          ? "Password reset email sent successfully."
+          : "Password reset link generated in development/fallback mode.",
       },
       { status: 200 }
     );

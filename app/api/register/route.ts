@@ -55,6 +55,15 @@ export async function POST(req: Request) {
         },
       });
 
+      // Log activity
+      await tx.activity.create({
+        data: {
+          action: "User joined workspace",
+          target: fullName.trim(),
+          workspaceId: createdWorkspace.id,
+        },
+      });
+
       return { workspace: createdWorkspace, user: createdUser };
     });
 

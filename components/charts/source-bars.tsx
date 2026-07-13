@@ -9,14 +9,30 @@ interface SourceData {
   color: string;
 }
 
-export default function SourceBars() {
-  const sources: SourceData[] = [
-    { name: "Zendesk Support", count: 480, pct: 27, color: "bg-blue-500" },
-    { name: "Intercom Messenger", count: 390, pct: 22, color: "bg-indigo-500" },
-    { name: "App Store Reviews", count: 320, pct: 18, color: "bg-emerald-500" },
-    { name: "Twitter/X Mentions", count: 300, pct: 17, color: "bg-sky-500" },
-    { name: "Hubspot Integration", count: 290, pct: 16, color: "bg-orange-500" },
-  ];
+interface SourceBarsProps {
+  data?: SourceData[];
+}
+
+export default function SourceBars({ data = [] }: SourceBarsProps) {
+  const sources = data;
+
+  if (sources.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+        <div>
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Sources & Channels</h4>
+          <p className="text-sm font-bold text-slate-800">Volume distribution by channel</p>
+        </div>
+        <div className="h-[120px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 gap-2">
+          <span className="text-2xl">🔌</span>
+          <span className="font-extrabold text-slate-700 text-xs">No Channel Sources Tracked</span>
+          <span className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
+            Source volume distribution will display once integrations receive incoming feedback.
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
