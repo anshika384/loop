@@ -39,7 +39,12 @@ export async function GET(req: Request) {
       themes,
       channelStats,
       feedbacksForTimeline,
-      recentActivityDb
+      recentActivityDb,
+      newFeedbackCount,
+      reviewedFeedbackCount,
+      actionedFeedbackCount,
+      assignedFeedbackCount,
+      unassignedFeedbackCount
     ] = await Promise.all([
       // 1. Total Feedback Count (overall)
       prisma.feedback.count({
@@ -120,6 +125,26 @@ export async function GET(req: Request) {
         where: { workspaceId },
         orderBy: { createdAt: "desc" },
         take: 10,
+      }),
+      // 12. New Feedback Count
+      prisma.feedback.count({
+        where: { workspaceId, status: "NEW" },
+      }),
+      // 13. Reviewed Feedback Count
+      prisma.feedback.count({
+        where: { workspaceId, status: "REVIEWED" },
+      }),
+      // 14. Actioned Feedback Count
+      prisma.feedback.count({
+        where: { workspaceId, status: "ACTIONED" },
+      }),
+      // 15. Assigned Feedback Count
+      prisma.feedback.count({
+        where: { workspaceId, assignedToId: { not: null } },
+      }),
+      // 16. Unassigned Feedback Count
+      prisma.feedback.count({
+        where: { workspaceId, assignedToId: null },
       })
     ]);
 
@@ -237,6 +262,11 @@ export async function GET(req: Request) {
         totalFeedbackOverall,
         totalUsers,
         newFeedbackThisWeek,
+        newFeedbackCount,
+        reviewedFeedbackCount,
+        actionedFeedbackCount,
+        assignedFeedbackCount,
+        unassignedFeedbackCount,
         posPct,
         neuPct,
         negPct,

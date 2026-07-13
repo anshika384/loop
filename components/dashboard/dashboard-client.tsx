@@ -36,6 +36,11 @@ interface StatsData {
   totalFeedbackOverall: number;
   totalUsers: number;
   newFeedbackThisWeek: number;
+  newFeedbackCount: number;
+  reviewedFeedbackCount: number;
+  actionedFeedbackCount: number;
+  assignedFeedbackCount: number;
+  unassignedFeedbackCount: number;
   posPct: number;
   neuPct: number;
   negPct: number;
@@ -297,30 +302,24 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                       <span className="text-xl font-black text-slate-800 block mt-1">{stats?.totalFeedbackOverall} items</span>
                     </div>
                     <div className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs">
-                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Total Workspace Members</span>
-                      <span className="text-xl font-black text-slate-800 block mt-1">{stats?.totalUsers} members</span>
+                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">New Feedback</span>
+                      <span className="text-xl font-black text-purple-600 block mt-1">{stats?.newFeedbackCount} items</span>
                     </div>
                     <div className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs">
-                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">New Feedback This Week</span>
-                      <span className="text-xl font-black text-slate-800 block mt-1">{stats?.newFeedbackThisWeek} items</span>
+                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Reviewed Feedback</span>
+                      <span className="text-xl font-black text-amber-500 block mt-1">{stats?.reviewedFeedbackCount} items</span>
                     </div>
                     <div className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs">
-                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Positive Feedback</span>
-                      <span className="text-xl font-black text-green-600 block mt-1">
-                        {stats?.posCount} <span className="text-[10px] font-bold text-slate-400">({stats?.posPct}%)</span>
-                      </span>
+                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Actioned Feedback</span>
+                      <span className="text-xl font-black text-green-650 text-green-600 block mt-1">{stats?.actionedFeedbackCount} items</span>
                     </div>
                     <div className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs">
-                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Neutral Feedback</span>
-                      <span className="text-xl font-black text-slate-500 block mt-1">
-                        {stats?.neuCount} <span className="text-[10px] font-bold text-slate-400">({stats?.neuPct}%)</span>
-                      </span>
+                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Assigned Feedback</span>
+                      <span className="text-xl font-black text-slate-800 block mt-1">{stats?.assignedFeedbackCount} items</span>
                     </div>
                     <div className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-xs">
-                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Negative Feedback</span>
-                      <span className="text-xl font-black text-red-600 block mt-1">
-                        {stats?.negCount} <span className="text-[10px] font-bold text-slate-400">({stats?.negPct}%)</span>
-                      </span>
+                      <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Unassigned Feedback</span>
+                      <span className="text-xl font-black text-slate-800 block mt-1">{stats?.unassignedFeedbackCount} items</span>
                     </div>
                   </div>
 
@@ -406,7 +405,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.2 }}
             >
-              <InboxFeed userRole={user.role} />
+              <InboxFeed user={user} onStatusChange={loadDashboardStats} />
             </motion.div>
           )}
 
