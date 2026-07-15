@@ -343,7 +343,7 @@ export async function PUT(req: Request) {
     }
 
     const updated = await prisma.user.update({
-      where: { id: targetUserId, workspaceId: user.workspaceId },
+      where: { id: targetUserId },
       data: { role: role as any },
     });
 

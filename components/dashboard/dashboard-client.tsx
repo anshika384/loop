@@ -15,6 +15,7 @@ import AIAnalysisCenter from "../ai/ai-analysis-center";
 import ExecutiveReports from "../reports/executive-reports";
 import TeamManager from "../users/team-manager";
 import SettingsManager from "../layout/settings-manager";
+import ThemeManager from "../feedback/theme-manager";
 
 import { Flame, Group, Inbox, FileText, Sparkles, RefreshCw, BarChart3, Database, Users, HelpCircle, Activity, ShieldAlert } from "lucide-react";
 
@@ -68,6 +69,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   // Time filter filter range for charts
   const [daysFilter, setDaysFilter] = useState("30");
 
+  // Trends state
+  const [trendSpikes, setTrendSpikes] = useState<any[]>([]);
+  const [loadingTrends, setLoadingTrends] = useState(false);
+
   const getRelativeTime = (dateStr: string) => {
     if (!dateStr) return "";
     const timeMs = new Date(dateStr).getTime();
@@ -117,9 +122,49 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     }
   }, [daysFilter]);
 
+  const loadTrendAnalysis = useCallback(async () => {
+    setLoadingTrends(true);
+    try {
+      const res = await fetch("/api/trends");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setTrendSpikes(json.data.spikes || []);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading trends:", err);
+    } finally {
+      setLoadingTrends(false);
+    }
+  }, []);
+
+  const runTrendDetection = async () => {
+    setLoadingTrends(true);
+    try {
+      const res = await fetch("/api/trends", { method: "POST" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setTrendSpikes(json.data.spikes || []);
+        }
+      }
+    } catch (err) {
+      console.error("Error running trends:", err);
+    } finally {
+      setLoadingTrends(false);
+    }
+  };
+
   useEffect(() => {
     loadDashboardStats();
   }, [loadDashboardStats]);
+
+  useEffect(() => {
+    if (activeView === "alerts") {
+      loadTrendAnalysis();
+    }
+  }, [activeView, loadTrendAnalysis]);
 
   const handleSeedWorkspace = async () => {
     setSeeding(true);
@@ -468,47 +513,12 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              <div className="border-b border-slate-100 pb-3">
+              <div className="border-b border-slate-100 pb-1">
                 <h4 className="text-base font-bold text-slate-800">AI-Clustered Problem Themes</h4>
                 <p className="text-xs text-slate-500">Underlying root causes aggregated from repetitive customer complaints.</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {stats?.topThemesData && stats.topThemesData.length > 0 ? (
-                  stats.topThemesData.map((theme) => (
-                    <div
-                      key={theme.id}
-                      className="border border-slate-200 bg-slate-50 p-4 rounded-xl flex items-center justify-between shadow-xs hover:shadow-md transition animate-in fade-in duration-200"
-                    >
-                      <div className="space-y-1.5 min-w-0 pr-4">
-                        <span 
-                          className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border"
-                          style={{ backgroundColor: `${theme.color}10`, color: theme.color, borderColor: `${theme.color}20` }}
-                        >
-                          Theme Cluster
-                        </span>
-                        <h5 className="text-xs font-bold text-slate-800 truncate leading-snug">{theme.name}</h5>
-                        {theme.description && (
-                          <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed mt-1">{theme.description}</p>
-                        )}
-                      </div>
-                      
-                      <div className="text-right shrink-0">
-                        <span className="text-base font-black text-slate-800 block">{theme.volume}</span>
-                        <span className="text-[8px] uppercase tracking-wider font-extrabold text-slate-500 block">Comments</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="sm:col-span-2 py-16 flex flex-col items-center justify-center text-center text-slate-450 text-slate-400 text-xs font-medium gap-3 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                    <span className="text-2xl">📊</span>
-                    <span className="font-extrabold text-slate-700">No Theme Clusters Available</span>
-                    <span className="max-w-xs text-[11px] text-slate-500">
-                      AI clustering has not been executed yet. Theme clusters will appear automatically once customer feedback has been analyzed.
-                    </span>
-                  </div>
-                )}
-              </div>
+              <ThemeManager userRole={user.role} />
             </motion.div>
           )}
 
@@ -522,18 +532,62 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               transition={{ duration: 0.2 }}
               className="space-y-6"
             >
-              <div className="border-b border-slate-100 pb-3">
-                <h4 className="text-base font-bold text-slate-800">Trend & Anomaly Detection</h4>
-                <p className="text-xs text-slate-500">Live AI trend monitors tracing anomaly surges.</p>
+              <div className="border-b border-slate-100 pb-3 flex flex-wrap gap-4 justify-between items-center">
+                <div>
+                  <h4 className="text-base font-bold text-slate-800">Trend & Anomaly Detection</h4>
+                  <p className="text-xs text-slate-500">Live AI trend monitors tracing anomaly surges.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {trendSpikes.length > 0 && (
+                    <span className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-100 flex items-center gap-1">
+                      <Flame className="h-3.5 w-3.5 animate-pulse" /> {trendSpikes.length} Spikes Flagged
+                    </span>
+                  )}
+                  <button
+                    onClick={runTrendDetection}
+                    disabled={loadingTrends}
+                    className="text-xs text-white font-bold flex items-center gap-1.5 cursor-pointer bg-slate-900 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl px-3 py-1.5 transition-all shadow-sm"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${loadingTrends ? "animate-spin" : ""}`} />
+                    {loadingTrends ? "Analyzing..." : "Re-run Trend Analysis"}
+                  </button>
+                </div>
               </div>
 
-              <div className="border border-slate-200 p-8 rounded-2xl bg-white shadow-sm flex flex-col items-center justify-center text-center min-h-[300px] gap-3 border-2 border-dashed border-slate-200 bg-slate-50/30">
-                <span className="text-3xl animate-pulse">📈</span>
-                <h4 className="text-sm font-extrabold text-slate-855 text-slate-800">No Trend Analysis Available</h4>
-                <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
-                  Trend detection has not been executed yet. LOOP will automatically detect spikes after enough customer feedback has been processed.
-                </p>
-              </div>
+              {loadingTrends ? (
+                <div className="py-20 text-center text-slate-400 text-xs font-bold flex flex-col items-center justify-center gap-3">
+                  <RefreshCw className="h-6 w-6 animate-spin text-brand-primary" />
+                  <span>Computing theme and channel anomaly spikes...</span>
+                </div>
+              ) : trendSpikes.length > 0 ? (
+                <div className="space-y-3">
+                  {trendSpikes.map((spike, idx) => (
+                    <div key={idx} className="border border-slate-200 bg-slate-50 p-4 rounded-xl flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span className={`px-2 py-0.2 rounded font-bold uppercase ${
+                            spike.severity === 'Critical' ? 'bg-red-100 text-red-600' : spike.severity === 'High' ? 'bg-amber-100 text-amber-700' : spike.severity === 'Low' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
+                          }`}>{spike.severity}</span>
+                          <span className="text-slate-500">{spike.channel}</span>
+                        </div>
+                        <h5 className="text-xs font-bold text-slate-800">{spike.title}</h5>
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-extrabold text-base block ${spike.severity === 'Low' ? 'text-green-600' : 'text-red-500'}`}>{spike.spike} Spike</span>
+                        <span className="text-[9px] text-slate-400 block">{spike.delta}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border border-slate-200 p-8 rounded-2xl bg-white shadow-sm flex flex-col items-center justify-center text-center min-h-[300px] gap-3 border-2 border-dashed border-slate-200 bg-slate-50/30">
+                  <span className="text-3xl animate-pulse">📈</span>
+                  <h4 className="text-sm font-extrabold text-slate-855 text-slate-850 text-slate-800">No Trend Analysis Available</h4>
+                  <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+                    No abnormal volume surges or sentiment anomalies detected yet. Try importing more feedback or run analysis again.
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 

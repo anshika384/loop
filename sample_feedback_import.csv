@@ -1,0 +1,6 @@
+content,channel,customerLabel,sourceRef
+Payment failed during checkout,Website,Customer A,WEB001
+App crashes after login,Google Play,Customer B,APP002
+Love the new dashboard UI,Twitter,Customer C,TW003
+Invoice download is not working,Intercom,Customer D,INT004
+Need dark mode support,App Store,Customer E,APP005

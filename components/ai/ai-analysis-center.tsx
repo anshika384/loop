@@ -19,29 +19,31 @@ export default function AIAnalysisCenter() {
   ]);
   const [inputVal, setInputVal] = useState("");
   const [typing, setTyping] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   // Suggested Insights Checklist
   const suggestions = [
     {
       label: "Spike in checkout payment timeouts",
       prompt: "Explain why payment timeouts are spiking in checkout.",
-      answer: "Payment timeouts spike due to Stripe webhook delays on Android systems. Recommended fix: Optimize API connection pooling in Neon adapters.",
     },
     {
       label: "Safari browser rendering latency",
       prompt: "Why are Safari browser users reporting dashboard lag?",
-      answer: "Safari engine takes 15+ seconds compiling heavy PDF invoice data tables. Fix: Implement layout pagination to reduce heavy page loads.",
     },
     {
       label: "Support for regional currencies",
       prompt: "Are customers requesting regional currency supports?",
-      answer: "Yes, 12 occurrences suggest adding Euro (€) and GBP (£) support to checkout widgets.",
     },
     {
       label: "Mobile UI drag-and-drop feedback",
       prompt: "What is the consensus on the new drag & drop builder UI?",
-      answer: "94% positive sentiment! Customers love the design, but ask for dark-mode toggle options in sidebar preferences.",
     },
   ];
 
@@ -50,35 +52,42 @@ export default function AIAnalysisCenter() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
 
-  // Simulated AI response generation (OpenAI mock client endpoint connector ready)
-  const generateAIResponse = async (userPrompt: string) => {
+  // Call assistant REST endpoint with conversation history
+  const generateAIResponse = async (userPrompt: string, currentHistory: Message[]) => {
     setTyping(true);
-    
-    // Simulating OpenAI API latency
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    let reply = "I've analyzed the feedback. We see strong POSITIVE feedback for the drag-and-drop builder, but minor latency in checkout Stripe forms. Would you like me to draft an executive weekly report?";
-    
-    const lower = userPrompt.toLowerCase();
-    if (lower.includes("timeout") || lower.includes("checkout") || lower.includes("refund")) {
-      reply = "Our billing models indicate 52% of checkout failures relate to transaction timeouts (failures exceeding 5 seconds), 24% mention Android Stripe failures (code 402), and 12% request local currency supports.";
-    } else if (lower.includes("safari") || lower.includes("lag") || lower.includes("slow")) {
-      reply = "Safari browser lags significantly when exporting weekly charts to PDF formats. The gateway times out after 15 seconds. We recommend lazy-loading chart graphics.";
-    } else if (lower.includes("currency") || lower.includes("euro")) {
-      reply = "Customers are requesting invoice support for Euros (€) and British Pounds (£) for regional checkout forms.";
-    } else if (lower.includes("dark") || lower.includes("theme") || lower.includes("mode")) {
-      reply = "Dark mode sidebar settings have contrast complaints. We should increase font contrast inside the settings stylesheet.";
-    }
+    try {
+      const res = await fetch("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: userPrompt,
+          history: currentHistory.slice(0, -1), // Send history before the current message
+        }),
+      });
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: reply,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
-    setTyping(false);
+      if (!res.ok) {
+        throw new Error("Failed to communicate with LOOP assistant.");
+      }
+
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.message || "Failed to generate AI response.");
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: json.reply,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+    } catch (err: any) {
+      console.error(err);
+      triggerToast("Unable to contact AI Assistant");
+    } finally {
+      setTyping(false);
+    }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -86,33 +95,29 @@ export default function AIAnalysisCenter() {
     if (!inputVal.trim() || typing) return;
 
     const userMsg = inputVal.trim();
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        content: userMsg,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
+    const newMsg: Message = {
+      role: "user",
+      content: userMsg,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const updated = [...messages, newMsg];
+    setMessages(updated);
     setInputVal("");
-    generateAIResponse(userMsg);
+    generateAIResponse(userMsg, updated);
   };
 
-  const handleSuggestedClick = (prompt: string, answer: string) => {
+  const handleSuggestedClick = (prompt: string) => {
     if (typing) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        content: prompt,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-      {
-        role: "assistant",
-        content: answer,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
+    const newMsg: Message = {
+      role: "user",
+      content: prompt,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const updated = [...messages, newMsg];
+    setMessages(updated);
+    generateAIResponse(prompt, updated);
   };
 
   return (
@@ -229,7 +234,7 @@ export default function AIAnalysisCenter() {
               <button
                 key={idx}
                 disabled={typing}
-                onClick={() => handleSuggestedClick(item.prompt, item.answer)}
+                onClick={() => handleSuggestedClick(item.prompt)}
                 className="w-full text-left p-3 rounded-xl border border-slate-200/60 bg-slate-50/40 hover:bg-slate-50 transition flex items-start gap-2.5 group text-xs disabled:opacity-50"
               >
                 <div className="h-4 w-4 rounded border border-slate-350 bg-white group-hover:border-brand-primary flex items-center justify-center shrink-0 mt-0.5 transition-colors">
@@ -250,6 +255,16 @@ export default function AIAnalysisCenter() {
           </div>
         </div>
 
+      </div>
+
+      {/* Floating toast notification */}
+      <div className="fixed bottom-5 right-5 z-50">
+        {toastMessage && (
+          <div className="bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-lg border border-slate-800 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-5">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
+            <span className="font-semibold">{toastMessage}</span>
+          </div>
+        )}
       </div>
     </div>
   );

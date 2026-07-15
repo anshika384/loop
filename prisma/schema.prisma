@@ -70,6 +70,9 @@ model Feedback {
   sentiment      Sentiment?
   sentimentScore Float?
   status         FeedbackStatus @default(NEW)
+  
+  aiProcessed    Boolean   @default(false)
+  processedAt    DateTime?
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -118,6 +121,7 @@ model FeedbackTheme {
   theme    Theme    @relation(fields: [themeId], references: [id], onDelete: Cascade)
 
   @@id([feedbackId, themeId])
+  @@index([themeId])
 }
 
 model Embedding {

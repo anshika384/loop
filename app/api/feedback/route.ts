@@ -58,10 +58,31 @@ export async function GET(req: Request) {
 
     const feedbacks = await prisma.feedback.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        content: true,
+        channel: true,
+        sourceRef: true,
+        customerLabel: true,
+        sentiment: true,
+        sentimentScore: true,
+        status: true,
+        aiProcessed: true,
+        processedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        workspaceId: true,
+        assignedToId: true,
         themes: {
-          include: {
-            theme: true,
+          select: {
+            confidence: true,
+            theme: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
           },
         },
         assignedTo: {
