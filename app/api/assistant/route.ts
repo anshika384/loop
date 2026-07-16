@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { generateContentWithRetry } from "@/lib/ai/gemini";
+import { getCachedContext, setCachedContext } from "@/lib/assistant-cache";
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+  let dbQueryTime = 0;
+  let promptBuildTime = 0;
+  let geminiTime = 0;
+
   try {
     // STEP 1 Authentication
-    console.log("STEP 1 Authentication");
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get("session_token")?.value;
     if (!sessionToken) {
@@ -23,7 +28,6 @@ export async function POST(req: Request) {
     }
 
     // STEP 2 Workspace
-    console.log("STEP 2 Workspace");
     if (!user.workspace) {
       console.warn("STEP 2 Workspace WARNING: user.workspace is null/undefined!");
     }
@@ -57,27 +61,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // STEP 3 Feedback
-    // STEP 4 Themes
-    // STEP 5 Trends
-    console.log("STEP 3 Feedback");
-    console.log("STEP 4 Themes");
-    console.log("STEP 5 Trends");
+    // Lazy retrieval checks
+    const promptLower = prompt.toLowerCase();
+    const wantsComplaints = promptLower.includes("show all complaints") || promptLower.includes("complaint") || promptLower.includes("negative") || promptLower.includes("bad") || promptLower.includes("issue") || promptLower.includes("problem") || promptLower.includes("bug") || promptLower.includes("crash") || promptLower.includes("error") || promptLower.includes("fail") || promptLower.includes("slow") || promptLower.includes("lag");
+    const wantsPositive = promptLower.includes("show positive reviews") || promptLower.includes("positive") || promptLower.includes("praise") || promptLower.includes("good") || promptLower.includes("love") || promptLower.includes("like") || promptLower.includes("recommend") || promptLower.includes("satisfy");
+    const wantsCheckout = promptLower.includes("show checkout complaints") || promptLower.includes("checkout") || promptLower.includes("payment") || promptLower.includes("stripe") || promptLower.includes("billing") || promptLower.includes("invoice");
 
-    let totalFeedback = 0;
-    let sentiments: any[] = [];
-    let recentNegatives: any[] = [];
-    let recentPositives: any[] = [];
-    let themes: any[] = [];
-    let latestTrendReport: any = null;
+    let dbStart = Date.now();
 
-    try {
-      // Execute all database queries in parallel for maximum performance
+    // Get static context from cache or database
+    let contextData = getCachedContext(workspaceId);
+
+    if (!contextData) {
       const [
         countDb,
         sentimentsDb,
-        recentNegativesDb,
-        recentPositivesDb,
         themesDb,
         trendDb
       ] = await Promise.all([
@@ -87,18 +85,6 @@ export async function POST(req: Request) {
           where: { workspaceId },
           _count: { sentiment: true },
         } as any),
-        prisma.feedback.findMany({
-          where: { workspaceId, sentiment: "NEG" },
-          select: { content: true, channel: true, createdAt: true },
-          orderBy: { createdAt: "desc" },
-          take: 5, // Limit 1: Only load 5 newest negative feedback items
-        }),
-        prisma.feedback.findMany({
-          where: { workspaceId, sentiment: "POS" },
-          select: { content: true, channel: true },
-          orderBy: { createdAt: "desc" },
-          take: 3, // Limit 2: Only load 3 newest positive feedback items
-        }),
         prisma.theme.findMany({
           where: { workspaceId },
           select: {
@@ -121,158 +107,206 @@ export async function POST(req: Request) {
         })
       ]);
 
-      totalFeedback = countDb;
-      sentiments = Array.isArray(sentimentsDb) ? sentimentsDb : [];
-      recentNegatives = Array.isArray(recentNegativesDb) ? recentNegativesDb : [];
-      recentPositives = Array.isArray(recentPositivesDb) ? recentPositivesDb : [];
-      themes = Array.isArray(themesDb) ? themesDb : [];
-      latestTrendReport = trendDb;
+      const totalFeedback = countDb;
+      const sentiments = Array.isArray(sentimentsDb) ? (sentimentsDb as any[]) : [];
+      const themes = Array.isArray(themesDb) ? themesDb : [];
+      const latestTrendReport = trendDb;
 
-    } catch (dbErr: any) {
-      console.error("[Assistant] STEP 3/4/5 database failure:", dbErr.message, dbErr.stack);
+      // Sort themes by feedback count descending and take top 5
+      const topThemes = themes
+        .map((t) => ({
+          name: t.name,
+          description: t.description,
+          feedbackCount: Array.isArray(t.feedbacks) ? t.feedbacks.length : 0,
+          negCount: Array.isArray(t.feedbacks) ? t.feedbacks.filter((f: any) => f?.feedback?.sentiment === "NEG").length : 0,
+        }))
+        .sort((a, b) => b.feedbackCount - a.feedbackCount)
+        .slice(0, 5);
+
+      let posCount = 0;
+      let neuCount = 0;
+      let negCount = 0;
+      sentiments.forEach((item) => {
+        if (item && item.sentiment === "POS") posCount = item._count?.sentiment || 0;
+        else if (item && item.sentiment === "NEU") neuCount = item._count?.sentiment || 0;
+        else if (item && item.sentiment === "NEG") negCount = item._count?.sentiment || 0;
+      });
+
+      const themesSummary = topThemes
+        .map((t) => `- Theme "${t.name}": ${t.feedbackCount} comments (${t.negCount} negative). Desc: ${t.description ? t.description.substring(0, 60) : "No description"}`)
+        .join("\n");
+
+      let trendsText = "No trend analysis available yet.";
+      if (latestTrendReport && latestTrendReport.contentJson) {
+        try {
+          const trendData = typeof latestTrendReport.contentJson === "string"
+            ? JSON.parse(latestTrendReport.contentJson)
+            : latestTrendReport.contentJson;
+
+          if (trendData && Array.isArray(trendData.spikes) && trendData.spikes.length > 0) {
+            trendsText = trendData.spikes
+              .slice(0, 3)
+              .map((s: any) => `- [${s.severity}] ${s.title}: Spike of ${s.spike} (${s.delta}) on ${s.channel}`)
+              .join("\n");
+          } else {
+            trendsText = "No abnormal volume spikes currently flagged.";
+          }
+        } catch (err) {}
+      }
+
+      contextData = {
+        workspaceName,
+        totalFeedback,
+        posCount,
+        neuCount,
+        negCount,
+        themesSummary,
+        trendsText,
+      };
+      setCachedContext(workspaceId, contextData);
     }
 
-    // STEP 6 Prompt Generated
-    console.log("STEP 6 Prompt Generated");
+    // Lazy retrieval queries
+    let recentNegatives: any[] = [];
+    let recentPositives: any[] = [];
+    let checkoutComplaints: any[] = [];
 
-    // Fallback if there's no feedback or themes
-    if (totalFeedback === 0 || themes.length === 0) {
-      console.log("[Assistant] Not enough customer feedback or themes. Returning early fallback message.");
+    const lazyQueries: Promise<any>[] = [];
+
+    if (wantsComplaints) {
+      lazyQueries.push(
+        prisma.feedback.findMany({
+          where: { workspaceId, sentiment: "NEG" },
+          select: { content: true, channel: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }).then(res => { recentNegatives = res; })
+      );
+    }
+
+    if (wantsPositive) {
+      lazyQueries.push(
+        prisma.feedback.findMany({
+          where: { workspaceId, sentiment: "POS" },
+          select: { content: true, channel: true },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }).then(res => { recentPositives = res; })
+      );
+    }
+
+    if (wantsCheckout) {
+      lazyQueries.push(
+        prisma.feedback.findMany({
+          where: {
+            workspaceId,
+            sentiment: "NEG",
+            OR: [
+              { content: { contains: "checkout", mode: "insensitive" } },
+              { content: { contains: "stripe", mode: "insensitive" } },
+              { content: { contains: "payment", mode: "insensitive" } },
+            ],
+          },
+          select: { content: true, channel: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }).then(res => { checkoutComplaints = res; })
+      );
+    }
+
+    if (lazyQueries.length > 0) {
+      await Promise.all(lazyQueries);
+    }
+    dbQueryTime = Date.now() - dbStart;
+
+    // STEP 6 Prompt Generated
+    const promptBuildStart = Date.now();
+
+    // Fallback if there's no feedback
+    if (contextData.totalFeedback === 0) {
       return NextResponse.json({
         success: true,
         reply: "There is currently not enough customer feedback to generate detailed insights.",
       });
     }
 
-    // Sort themes by feedback count descending and take top 10 (Limit 3)
-    const topThemes = themes
-      .map((t) => ({
-        ...t,
-        feedbackCount: Array.isArray(t.feedbacks) ? t.feedbacks.length : 0,
-      }))
-      .sort((a, b) => b.feedbackCount - a.feedbackCount)
-      .slice(0, 10);
-
-    // Format sentiments safely
-    let posCount = 0;
-    let neuCount = 0;
-    let negCount = 0;
-    sentiments.forEach((item) => {
-      if (item && item.sentiment === "POS") posCount = item._count?.sentiment || 0;
-      else if (item && item.sentiment === "NEU") neuCount = item._count?.sentiment || 0;
-      else if (item && item.sentiment === "NEG") negCount = item._count?.sentiment || 0;
-    });
-
-    // Format top 10 themes summary
-    const themesSummary = topThemes
-      .map((t) => {
-        if (!t) return "";
-        const feedbacksArray = Array.isArray(t.feedbacks) ? t.feedbacks : [];
-        const count = feedbacksArray.length;
-        const negInTheme = feedbacksArray.filter((f: any) => f?.feedback?.sentiment === "NEG").length;
-        return `- Theme "${t.name || "Unnamed"}": ${count} comments (${negInTheme} negative complaints). Description: ${t.description || "No description"}`;
-      })
-      .filter(Boolean)
-      .join("\n");
-
-    // Format 5 negative complaints
-    const negativesText = recentNegatives
-      .map((f, i) => {
-        if (!f) return "";
-        const dateStr = f.createdAt instanceof Date ? f.createdAt.toLocaleDateString() : String(f.createdAt || "");
-        return `${i + 1}. "${f.content || ""}" (Channel: ${f.channel || "Unknown"}, Date: ${dateStr})`;
-      })
-      .filter(Boolean)
-      .join("\n");
-
-    // Format 3 positive comments
-    const positivesText = recentPositives
-      .map((f, i) => {
-        if (!f) return "";
-        return `${i + 1}. "${f.content || ""}" (Channel: ${f.channel || "Unknown"})`;
-      })
-      .filter(Boolean)
-      .join("\n");
-
-    // Incorporate trend detection insights
-    let trendsText = "No trend analysis available yet.";
-    if (latestTrendReport && latestTrendReport.contentJson) {
-      try {
-        const trendData = typeof latestTrendReport.contentJson === "string"
-          ? JSON.parse(latestTrendReport.contentJson)
-          : latestTrendReport.contentJson;
-
-        if (trendData && Array.isArray(trendData.spikes) && trendData.spikes.length > 0) {
-          trendsText = trendData.spikes
-            .map((s: any) => {
-              if (!s) return "";
-              return `- [${s.severity || "Medium"} Severity] ${s.title || "Spike"}: Spike of ${s.spike || "0%"} (${s.delta || ""}) on ${s.channel || "Unknown"}`;
-            })
-            .filter(Boolean)
-            .join("\n");
-        } else {
-          trendsText = "Trend analysis has run, but no abnormal volume spikes are currently flagged.";
-        }
-      } catch (err: any) {
-        console.error("[Assistant] STEP 6 parsing trend contentJson error:", err.message);
-      }
+    // Format optional lazy retrieved comments
+    let negativesText = "";
+    if (wantsComplaints && recentNegatives.length > 0) {
+      negativesText = "\n\nRECENT CUSTOMER COMPLAINTS:\n" + recentNegatives
+        .map((f, i) => `${i + 1}. "${f.content}" (Channel: ${f.channel})`)
+        .join("\n");
     }
 
-    const systemPrompt = `You are the LOOP AI customer feedback assistant.
-Your job is to answer the user's questions about workspace customer feedback using the actual database statistics and feedback details provided below.
+    let positivesText = "";
+    if (wantsPositive && recentPositives.length > 0) {
+      positivesText = "\n\nRECENT CUSTOMER PRAISE:\n" + recentPositives
+        .map((f, i) => `${i + 1}. "${f.content}" (Channel: ${f.channel})`)
+        .join("\n");
+    }
 
-INSTRUCTIONS:
-1. Provide extremely detailed, professional, and data-driven responses.
-2. Ground all numbers, percentages, and complaints strictly in the CONTEXT DATABASE DATA. Never hallucinate feedback comments or metrics.
-3. If a question is about complaints or why users are unhappy, prioritize analyzing negative feedback comments and the most negative themes.
-4. Gemini should only generate natural language. Do NOT write SQL or make code modifications. Never update database records.
+    let checkoutText = "";
+    if (wantsCheckout && checkoutComplaints.length > 0) {
+      checkoutText = "\n\nCHECKOUT / PAYMENT COMPLAINTS:\n" + checkoutComplaints
+        .map((f, i) => `${i + 1}. "${f.content}" (Channel: ${f.channel})`)
+        .join("\n");
+    }
+
+    let systemPrompt = `You are the LOOP AI customer feedback assistant.
+Answer questions about workspace feedback using the data below. Ground all answers strictly in this data.
 
 CONTEXT DATABASE DATA:
-- Workspace Name: "${workspaceName}"
-- Total Feedback Items: ${totalFeedback}
+- Workspace Name: "${contextData.workspaceName}"
+- Total Feedback Items: ${contextData.totalFeedback}
 - Sentiment Distribution:
-  * Positive: ${posCount} (${totalFeedback > 0 ? ((posCount / totalFeedback) * 100).toFixed(1) : 0}%)
-  * Neutral: ${neuCount} (${totalFeedback > 0 ? ((neuCount / totalFeedback) * 100).toFixed(1) : 0}%)
-  * Negative: ${negCount} (${totalFeedback > 0 ? ((negCount / totalFeedback) * 100).toFixed(1) : 0}%)
+  * Positive: ${contextData.posCount}
+  * Neutral: ${contextData.neuCount}
+  * Negative: ${contextData.negCount}
 
-THEME DISTRIBUTIONS & COMPLAINTS (TOP 10):
-${themesSummary || "No themes defined yet."}
+TOP 5 THEMES:
+${contextData.themesSummary || "No themes defined."}
 
-FLAGGED TREND SPIKES & ANOMALIES:
-${trendsText}
+LATEST TREND SUMMARY:
+${contextData.trendsText}${negativesText}${positivesText}${checkoutText}`;
 
-RECENT CUSTOMER COMPLAINTS (NEWEST 5 SNIPPETS):
-${negativesText || "No negative feedback recorded."}
+    // Ensure prompt size fits strictly < 3000 characters
+    if (systemPrompt.length > 2000) {
+      systemPrompt = systemPrompt.substring(0, 2000) + "\n[Truncated to fit limits]";
+    }
 
-RECENT CUSTOMER PRAISE (NEWEST 3 SNIPPETS):
-${positivesText || "No positive feedback recorded."}
-`;
-
-    // Limit chat history to last 6 messages (Limit 4)
+    // Limit chat history to last 5 messages in total (including the current user prompt)
+    // So history slice length should be at most 4.
     let messagesInput: any[] = [];
     if (history && Array.isArray(history)) {
-      const slicedHistory = history.slice(-6);
+      const slicedHistory = history.slice(-4);
       messagesInput = slicedHistory
         .map((h: any) => {
           if (!h || typeof h.content !== "string") return null;
+          let text = h.content;
+          if (text.length > 200) {
+            text = text.substring(0, 200) + "...";
+          }
           return {
             role: h.role === "user" ? "user" : "model",
-            parts: [{ text: h.content }],
+            parts: [{ text }],
           };
         })
         .filter(Boolean);
     }
     
     // Add current user prompt
+    let trimmedPrompt = prompt;
+    if (trimmedPrompt.length > 500) {
+      trimmedPrompt = trimmedPrompt.substring(0, 500) + "...";
+    }
     messagesInput.push({
       role: "user",
-      parts: [{ text: prompt }],
+      parts: [{ text: trimmedPrompt }],
     });
 
-    console.log(`[Assistant] Prompt: "${prompt.substring(0, 60)}..." (workspaceId=${workspaceId})`);
+    promptBuildTime = Date.now() - promptBuildStart;
 
     // STEP 7 Gemini Request
-    console.log("STEP 7 Gemini Request");
     const geminiStartTime = Date.now();
     let responseText = "";
     
@@ -286,10 +320,7 @@ ${positivesText || "No positive feedback recorded."}
         "gemini-2.5-flash"
       );
 
-      // STEP 8 Gemini Response
-      console.log("STEP 8 Gemini Response");
-      const geminiLatency = Date.now() - geminiStartTime;
-      console.log(`[Assistant] Gemini call resolved in ${geminiLatency}ms`);
+      geminiTime = Date.now() - geminiStartTime;
 
       if (response && response.text) {
         responseText = response.text;
@@ -297,31 +328,28 @@ ${positivesText || "No positive feedback recorded."}
         throw new Error("Returned response text from generateContentWithRetry() is empty.");
       }
     } catch (geminiErr: any) {
-      console.error("[Assistant] Gemini request failed permanently after retries.");
-      console.error(geminiErr.message);
-      console.error(geminiErr.stack);
-
-      // Graceful fallback for Gemini failures (Phase 3 requirement): Never return 500
+      console.error("[Assistant] Gemini request failed permanently after retries:", geminiErr.message);
       return NextResponse.json({
         success: true,
         reply: "I'm temporarily unable to analyze the latest customer feedback. Please try again in a moment.",
       });
     }
 
-    // STEP 9 Response Sent
-    console.log("STEP 9 Response Sent");
+    // Log performance metrics
+    const totalRequestTime = Date.now() - startTime;
+    console.log(`[Assistant Performance Metrics]`);
+    console.log(`- DB Query Time: ${dbQueryTime} ms`);
+    console.log(`- Prompt Build Time: ${promptBuildTime} ms`);
+    console.log(`- Gemini Time: ${geminiTime} ms`);
+    console.log(`- Total Request Time: ${totalRequestTime} ms`);
+
     return NextResponse.json({ success: true, reply: responseText });
   } catch (error: any) {
-    console.error("[Assistant] POST outer handler error:");
-    console.error(error);
-    if (error instanceof Error) {
-      console.error(error.stack);
-    }
+    console.error("[Assistant] POST outer handler error:", error);
     return NextResponse.json(
       {
         success: false,
         message: error?.message || "An unexpected assistant handler error occurred.",
-        stack: error?.stack,
       },
       { status: 500 }
     );

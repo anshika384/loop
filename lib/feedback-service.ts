@@ -1,6 +1,8 @@
 import prisma from "./prisma";
 import { analyzeSentiment } from "./ai/sentiment";
 import { clusterTheme, normalizeThemeName, getSimilarity, classifyLocalKeywords } from "./ai/themes";
+import { invalidateCachedContext } from "./assistant-cache";
+
 
 export interface ParsedRow {
   content: string;
@@ -488,6 +490,7 @@ export async function bulkImport(rows: ParsedRow[], workspaceId: string): Promis
       });
       // Trigger trend analysis update
       await triggerTrendAnalysis(workspaceId);
+      invalidateCachedContext(workspaceId);
     }
 
     return {
@@ -601,6 +604,7 @@ export async function addSingleFeedback(row: ParsedRow, workspaceId: string): Pr
 
   // Trigger trend analysis update
   await triggerTrendAnalysis(workspaceId);
+  invalidateCachedContext(workspaceId);
 
   return created;
 }
@@ -633,6 +637,7 @@ export async function deleteFeedback(feedbackId: string, workspaceId: string, ad
 
   // Trigger trend analysis update
   await triggerTrendAnalysis(workspaceId);
+  invalidateCachedContext(workspaceId);
 
   return deleted;
 }

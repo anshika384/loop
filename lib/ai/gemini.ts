@@ -27,11 +27,14 @@ export async function generateContentWithRetry(
   const maxRetries = 3;
   
   // Ordered candidate fallback models. If the first fails, it falls back to the next.
-  const candidateModels = [
+  const candidateModels = Array.from(new Set([
+    model,
+    "gemini-2.5-flash",
     "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash-lite"
-  ];
+  ]));
+
 
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("Gemini API key is missing from environment variables.");

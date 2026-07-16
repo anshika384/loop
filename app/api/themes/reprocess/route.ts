@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
-import { clusterTheme, classifyLocalKeywords } from "@/lib/ai/themes";
+import { clusterTheme, classifyLocalKeywords, normalizeThemeName, getSimilarity } from "@/lib/ai/themes";
 import { analyzeSentiment } from "@/lib/ai/sentiment";
-import { resolveAndOrCreateTheme, triggerTrendAnalysis } from "@/lib/feedback-service";
+import { triggerTrendAnalysis } from "@/lib/feedback-service";
+import { invalidateCachedContext } from "@/lib/assistant-cache";
+import crypto from "crypto";
 
 /**
  * Concurrency worker pool execution utility.
@@ -84,13 +86,75 @@ export async function POST(req: Request) {
     }
 
     // Load existing workspace themes once
-    let existingThemes = await prisma.theme.findMany({
+    const existingThemes = await prisma.theme.findMany({
       where: { workspaceId },
       select: { id: true, name: true },
     });
 
+    // In-memory cache structures for theme resolution
+    const themeMap = new Map<string, string>();
+    const existingThemesList: { id: string; name: string }[] = [];
+    existingThemes.forEach((t) => {
+      const key = t.name.toLowerCase().trim();
+      themeMap.set(key, t.id);
+      existingThemesList.push({ id: t.id, name: t.name });
+    });
+
+    const newThemesToCreate: { id: string; name: string; color: string; workspaceId: string }[] = [];
+
+    // Helper to resolve theme name completely in-memory
+    const resolveThemeInMemory = (themeName: string): string => {
+      const normalized = normalizeThemeName(themeName);
+      const key = normalized.toLowerCase().trim();
+
+      // 1. Check exact match in Map
+      if (themeMap.has(key)) {
+        return themeMap.get(key)!;
+      }
+
+      // 2. Check Dice similarity coefficient (>80% overlap) in the combined list
+      for (const t of existingThemesList) {
+        const sim = getSimilarity(t.name, normalized);
+        if (sim > 0.8) {
+          themeMap.set(key, t.id);
+          return t.id;
+        }
+      }
+
+      // 3. Create a new canonical theme (in-memory first)
+      const newId = crypto.randomUUID();
+      const PRESET_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#14B8A6", "#6366F1"];
+      const color = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+
+      const newTheme = {
+        id: newId,
+        name: normalized,
+        color,
+        workspaceId,
+      };
+
+      newThemesToCreate.push(newTheme);
+      existingThemesList.push({ id: newId, name: normalized });
+      themeMap.set(key, newId);
+
+      return newId;
+    };
+
     let processed = 0;
     let failed = 0;
+
+    const feedbackUpdates: {
+      id: string;
+      sentiment: "POS" | "NEU" | "NEG";
+      sentimentScore: number;
+      processedAt: Date;
+    }[] = [];
+
+    const feedbackThemesToCreate: {
+      feedbackId: string;
+      themeId: string;
+      confidence: number;
+    }[] = [];
 
     const processFeedbackItem = async (fb: { id: string; content: string }) => {
       let sentiment: "POS" | "NEU" | "NEG" = "NEU";
@@ -112,7 +176,7 @@ export async function POST(req: Request) {
 
       // 2. Classify Theme
       try {
-        const themeList = existingThemes.map((t) => t.name);
+        const themeList = existingThemesList.map((t) => t.name);
         const themeResult = await clusterTheme(fb.content, themeList);
         themeName = themeResult.theme;
         confidence = themeResult.confidence;
@@ -123,40 +187,91 @@ export async function POST(req: Request) {
         confidence = fallback.confidence;
       }
 
-      // 3. Resolve and Save (with Normalization & Similarity Check)
+      // 3. Resolve theme and push updates to memory collections
       try {
-        const themeId = await resolveAndOrCreateTheme(themeName, workspaceId, existingThemes);
+        const themeId = resolveThemeInMemory(themeName);
 
-        // Update sentiment & processing meta on Feedback
-        await prisma.feedback.update({
-          where: { id: fb.id },
-          data: {
-            sentiment,
-            sentimentScore: score,
-            aiProcessed: true,
-            processedAt: new Date(),
-          },
+        feedbackUpdates.push({
+          id: fb.id,
+          sentiment,
+          sentimentScore: score,
+          processedAt: new Date(),
         });
 
-        // Upsert FeedbackTheme relationship
-        await prisma.feedbackTheme.upsert({
-          where: { feedbackId_themeId: { feedbackId: fb.id, themeId } },
-          create: { feedbackId: fb.id, themeId, confidence },
-          update: { confidence },
+        feedbackThemesToCreate.push({
+          feedbackId: fb.id,
+          themeId,
+          confidence,
         });
 
         processed++;
       } catch (err: any) {
-        console.error(`[ThemesReprocess] Failed database upsert for fb ID: ${fb.id}. Error: ${err?.message || err}`);
+        console.error(`[ThemesReprocess] Failed resolving theme in-memory for fb ID: ${fb.id}. Error: ${err?.message || err}`);
         failed++;
       }
     };
 
-    // Process all feedbacks concurrently with concurrency = 2
-    await processInBatches(allFeedback, 2, processFeedbackItem);
+    // Process all feedbacks concurrently with concurrency = 3
+    await processInBatches(allFeedback, 3, processFeedbackItem);
+
+    // 4. Perform Batched Writes in a Single Transaction
+    const operations = [];
+
+    // Batch Theme creations
+    if (newThemesToCreate.length > 0) {
+      operations.push(
+        prisma.theme.createMany({
+          data: newThemesToCreate,
+          skipDuplicates: true,
+        })
+      );
+    }
+
+    // Batch FeedbackTheme deletes (to prevent duplicate primary key violations during reprocess)
+    const feedbackIds = allFeedback.map((f) => f.id);
+    operations.push(
+      prisma.feedbackTheme.deleteMany({
+        where: {
+          feedbackId: { in: feedbackIds },
+        },
+      })
+    );
+
+    // Batch FeedbackTheme inserts
+    if (feedbackThemesToCreate.length > 0) {
+      operations.push(
+        prisma.feedbackTheme.createMany({
+          data: feedbackThemesToCreate,
+          skipDuplicates: true,
+        })
+      );
+    }
+
+    // Batch Feedback updates
+    for (const update of feedbackUpdates) {
+      operations.push(
+        prisma.feedback.update({
+          where: { id: update.id },
+          data: {
+            sentiment: update.sentiment,
+            sentimentScore: update.sentimentScore,
+            aiProcessed: true,
+            processedAt: update.processedAt,
+          },
+        })
+      );
+    }
+
+    if (operations.length > 0) {
+      console.log(`[ThemesReprocess] Executing batch database operations in $transaction: ${operations.length} operations.`);
+      await prisma.$transaction(operations);
+    }
 
     // Recompute and store the trend summary
     await triggerTrendAnalysis(workspaceId);
+
+    // Invalidate assistant cache for this workspace as feedback theme classifications changed
+    invalidateCachedContext(workspaceId);
 
     const summaryText = `Index Rebuilt. Processed: ${totalFeedback}, Succeeded: ${processed}, Failed: ${failed}`;
     console.log(`[ThemesReprocess] Final summary: ${summaryText}`);
